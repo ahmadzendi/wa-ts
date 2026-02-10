@@ -1,14 +1,11 @@
-import baileys from '@whiskeysockets/baileys';
+import makeWASocket from '@whiskeysockets/baileys';
+import { useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { makeCacheableSignalKeyStore } from '@whiskeysockets/baileys';
+import { fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import { DisconnectReason } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import QRCode from 'qrcode';
 import { config } from './config.js';
-
-// Auto-detect export structure
-const makeWASocket = baileys.default || baileys.makeWASocket || baileys;
-const useMultiFileAuthState = baileys.useMultiFileAuthState;
-const makeCacheableSignalKeyStore = baileys.makeCacheableSignalKeyStore;
-const fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
-const DisconnectReason = baileys.DisconnectReason;
 
 const logger = pino({ level: 'silent' });
 
