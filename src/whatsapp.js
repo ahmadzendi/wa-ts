@@ -1,11 +1,13 @@
-import makeWASocket, {
+import pkg from '@whiskeysockets/baileys';
+const {
+  default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
   makeCacheableSignalKeyStore,
   fetchLatestBaileysVersion,
-} from 'baileys';
+} = pkg;
 import pino from 'pino';
-import qrcode from 'qrcode-terminal';
+import QRCode from 'qrcode';
 import { config } from './config.js';
 
 const logger = pino({ level: 'silent' });
@@ -21,14 +23,14 @@ export function isWaConnected() { return isConnected; }
 
 export async function sendWhatsApp(text) {
   if (!sock || !isConnected) {
-    console.log('⚠️  WhatsApp belum terhubung');
+    console.log('WhatsApp belum terhubung');
     return false;
   }
   try {
     await sock.sendMessage(config.waTargetJid, { text });
     return true;
   } catch (err) {
-    console.error('❌ Gagal kirim WA:', err.message);
+    console.error('Gagal kirim WA:', err.message);
     return false;
   }
 }
@@ -36,15 +38,19 @@ export async function sendWhatsApp(text) {
 export async function connectWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
 
-  // Ambil versi terbaru WA Web
-  const { version, isLatest } = await fetchLatestBaileysVersion();
-  console.log(`📌 WA Web version: ${version.join('.')} (latest: ${isLatest})`);
+  let version;
+  try {
+    const vInfo = await fetchLatestBaileysVersion();
+    version = vInfo.version;
+  } catch {
+    version = [2, 3000, 1015901307];
+  }
 
-    sock = makeWASocket({
+  sock = makeWASocket({
     version,
     auth: {
-        creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, logger),
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
     printQRInTerminal: false,
     logger,
@@ -52,52 +58,54 @@ export async function connectWhatsApp() {
     generateHighQualityLinkPreview: false,
     syncFullHistory: false,
     markOnlineOnConnect: false,
-    keepAliveIntervalMs: 15000,
-    connectTimeoutMs: 10000,
-    retryRequestDelayMs: 250,
-    fireInitQueries: false,
-    });
+  });
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      console.log('\n═══════════════════════════════════');
-      console.log('📱 Scan QR Code dengan WhatsApp:');
-      console.log('   WhatsApp > Linked Devices > Link a Device');
-      console.log('═══════════════════════════════════\n');
-      qrcode.generate(qr, { small: true });
+      // Terminal QR
+      console.log('\n=== SCAN QR CODE ===\n');
+      try {
+        const qrText = await QRCode.toString(qr, { type: 'terminal', small: true });
+        console.log(qrText);
+      } catch {
+        console.log('QR:', qr);
+      }
+
+      // QR sebagai link (bisa dibuka di browser lalu scan)
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+      console.log('\nAtau buka link ini di browser lalu scan:');
+      console.log(qrUrl);
+      console.log('\n====================\n');
     }
 
     if (connection === 'open') {
       isConnected = true;
-      console.log('✅ WhatsApp terhubung!');
-      console.log(`📤 Target: ${config.waTargetJid}`);
+      console.log('WhatsApp terhubung!');
+      console.log(`Target: ${config.waTargetJid}`);
     }
 
     if (connection === 'close') {
       isConnected = false;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const reason = lastDisconnect?.error?.output?.payload?.message || 'unknown';
-      console.log(`❌ WhatsApp terputus (${statusCode}: ${reason})`);
+      console.log(`WhatsApp terputus (${statusCode})`);
 
       if (statusCode === DisconnectReason.loggedOut) {
-        console.log('🔑 Logged out. Hapus auth_info dan restart.');
-        console.log('   Jalankan: rm -rf auth_info && npm start');
+        console.log('Logged out. Hapus auth_info dan restart.');
+        const fs = await import('fs');
+        try { fs.rmSync('./auth_info', { recursive: true, force: true }); } catch {}
+        setTimeout(connectWhatsApp, 3000);
         return;
       }
 
       if (statusCode === 405) {
-        console.log('🔄 Error 405 - menghapus session lama...');
-        import('fs').then(fs => {
-          try { fs.rmSync('./auth_info', { recursive: true, force: true }); } catch {}
-          console.log('🔄 Session dihapus, reconnecting...');
-          setTimeout(connectWhatsApp, 3000);
-        });
+        const fs = await import('fs');
+        try { fs.rmSync('./auth_info', { recursive: true, force: true }); } catch {}
+        setTimeout(connectWhatsApp, 3000);
         return;
       }
 
-      console.log('🔄 Reconnecting in 5s...');
       setTimeout(connectWhatsApp, config.reconnectDelayMs);
     }
   });
@@ -110,21 +118,22 @@ export async function connectWhatsApp() {
       if (msg.key.fromMe) continue;
       const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
       if (!text) continue;
+      const from = msg.key.remoteJid;
+      if (from !== config.waTargetJid) continue;
 
       if (text.startsWith('/atur ')) {
         customMessage = text.slice(6).trim();
-        console.log(`📝 Custom message: "${customMessage}"`);
-        sock.sendMessage(msg.key.remoteJid, { text: `✅ Pesan custom diubah:\n"${customMessage}"` });
+        sock.sendMessage(from, { text: `Pesan custom diubah:\n"${customMessage}"` });
       }
       if (text === '/reset') {
         customMessage = '';
-        sock.sendMessage(msg.key.remoteJid, { text: '✅ Pesan custom dihapus' });
+        sock.sendMessage(from, { text: 'Pesan custom dihapus' });
       }
       if (text === '/status' && onCommandCallback) {
-        sock.sendMessage(msg.key.remoteJid, { text: onCommandCallback('status') });
+        sock.sendMessage(from, { text: onCommandCallback('status') });
       }
       if (text === '/ping') {
-        sock.sendMessage(msg.key.remoteJid, { text: '🏓 Pong!' });
+        sock.sendMessage(from, { text: 'Pong!' });
       }
     }
   });
