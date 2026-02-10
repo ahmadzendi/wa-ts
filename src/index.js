@@ -1,3 +1,5 @@
+import { loadAuthFromEnv } from './auth-loader.js';
+loadAuthFromEnv();
 import { connectWhatsApp, sendWhatsApp, setCommandCallback, getCustomMessage, isWaConnected } from './whatsapp.js';
 import { connectTreasury, setOnPriceUpdate, isTreasuryConnected } from './treasury-ws.js';
 import { startMarketData, getXauUsd, getUsdIdr, stopMarketData } from './market-data.js';
@@ -95,5 +97,6 @@ process.on('SIGINT', async () => {
   disconnectTreasury();
   setTimeout(() => process.exit(0), 2000);
 });
+
 
 start();
