@@ -109,18 +109,16 @@ export async function connectWhatsApp() {
       const from = msg.key.remoteJid;
       const trimmed = text.trim();
 
+      // Log semua pesan masuk untuk debug
+      console.log(`Pesan dari: ${from} | Isi: ${trimmed}`);
+
       // /groupid bisa dari mana saja
       if (trimmed === '/groupid') {
-        sock.sendMessage(from, { text: `Group ID:\n${from}` });
+        sock.sendMessage(from, { text: `ID:\n${from}` });
         continue;
       }
 
-      // Command bisa dari PM siapa saja atau dari grup target
-      const isPrivateChat = from.endsWith('@s.whatsapp.net');
-      const isFromTarget = from === config.waTargetJid;
-
-      if (!isPrivateChat && !isFromTarget) continue;
-
+      // Semua command bisa dari mana saja (PM atau grup)
       if (trimmed.startsWith('/atur ')) {
         customMessage = trimmed.slice(6).trim();
         sock.sendMessage(from, { text: `Pesan custom diubah:\n"${customMessage}"` });
@@ -139,6 +137,7 @@ export async function connectWhatsApp() {
   });
   return sock;
 }
+
 
 
 
