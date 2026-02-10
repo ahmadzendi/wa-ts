@@ -14,7 +14,7 @@ export const config = {
     process.env.NOMINALS ||
     '[[10000000,9669000],[20000000,19330000],[30000000,28995000],[40000000,38660000],[50000000,48325000]]'
   ),
-  marketDataIntervalMs: 5000,
+  marketDataIntervalMs: 15000,
   reconnectDelayMs: 5000,
   pusherPingIntervalMs: 120000,
 };
