@@ -96,23 +96,39 @@ export async function connectWhatsApp() {
     if (type !== 'notify') return;
     for (const msg of messages) {
       if (msg.key.fromMe) continue;
-      const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+
+      // Ambil text dari semua kemungkinan format
+      const text =
+        msg.message?.conversation ||
+        msg.message?.extendedTextMessage?.text ||
+        msg.message?.imageMessage?.caption ||
+        msg.message?.videoMessage?.caption ||
+        msg.message?.buttonsResponseMessage?.selectedDisplayText ||
+        msg.message?.listResponseMessage?.title ||
+        msg.message?.templateButtonReplyMessage?.selectedDisplayText ||
+        msg.message?.editedMessage?.message?.protocolMessage?.editedMessage?.conversation ||
+        msg.message?.editedMessage?.message?.protocolMessage?.editedMessage?.extendedTextMessage?.text ||
+        '';
+
       if (!text) continue;
+
       const from = msg.key.remoteJid;
       if (from !== config.waTargetJid) continue;
 
-      if (text.startsWith('/atur ')) {
-        customMessage = text.slice(6).trim();
+      const trimmed = text.trim();
+
+      if (trimmed.startsWith('/atur ')) {
+        customMessage = trimmed.slice(6).trim();
         sock.sendMessage(from, { text: `Pesan custom diubah:\n"${customMessage}"` });
       }
-      if (text === '/reset') {
+      if (trimmed === '/reset') {
         customMessage = '';
         sock.sendMessage(from, { text: 'Pesan custom dihapus' });
       }
-      if (text === '/status' && onCommandCallback) {
+      if (trimmed === '/status' && onCommandCallback) {
         sock.sendMessage(from, { text: onCommandCallback('status') });
       }
-      if (text === '/ping') {
+      if (trimmed === '/ping') {
         sock.sendMessage(from, { text: 'Pong!' });
       }
     }
@@ -120,3 +136,4 @@ export async function connectWhatsApp() {
 
   return sock;
 }
+
