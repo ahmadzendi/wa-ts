@@ -1,14 +1,14 @@
-import pkg from '@whiskeysockets/baileys';
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  makeCacheableSignalKeyStore,
-  fetchLatestBaileysVersion,
-} = pkg;
+import baileys from '@whiskeysockets/baileys';
 import pino from 'pino';
 import QRCode from 'qrcode';
 import { config } from './config.js';
+
+// Auto-detect export structure
+const makeWASocket = baileys.default || baileys.makeWASocket || baileys;
+const useMultiFileAuthState = baileys.useMultiFileAuthState;
+const makeCacheableSignalKeyStore = baileys.makeCacheableSignalKeyStore;
+const fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
+const DisconnectReason = baileys.DisconnectReason;
 
 const logger = pino({ level: 'silent' });
 
@@ -22,15 +22,11 @@ export function getCustomMessage() { return customMessage; }
 export function isWaConnected() { return isConnected; }
 
 export async function sendWhatsApp(text) {
-  if (!sock || !isConnected) {
-    console.log('WhatsApp belum terhubung');
-    return false;
-  }
+  if (!sock || !isConnected) return false;
   try {
     await sock.sendMessage(config.waTargetJid, { text });
     return true;
-  } catch (err) {
-    console.error('Gagal kirim WA:', err.message);
+  } catch {
     return false;
   }
 }
@@ -64,7 +60,6 @@ export async function connectWhatsApp() {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      // Terminal QR
       console.log('\n=== SCAN QR CODE ===\n');
       try {
         const qrText = await QRCode.toString(qr, { type: 'terminal', small: true });
@@ -72,10 +67,8 @@ export async function connectWhatsApp() {
       } catch {
         console.log('QR:', qr);
       }
-
-      // QR sebagai link (bisa dibuka di browser lalu scan)
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
-      console.log('\nAtau buka link ini di browser lalu scan:');
+      console.log('\nBuka link ini di browser lalu scan:');
       console.log(qrUrl);
       console.log('\n====================\n');
     }
@@ -83,23 +76,13 @@ export async function connectWhatsApp() {
     if (connection === 'open') {
       isConnected = true;
       console.log('WhatsApp terhubung!');
-      console.log(`Target: ${config.waTargetJid}`);
     }
 
     if (connection === 'close') {
       isConnected = false;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      console.log(`WhatsApp terputus (${statusCode})`);
 
-      if (statusCode === DisconnectReason.loggedOut) {
-        console.log('Logged out. Hapus auth_info dan restart.');
-        const fs = await import('fs');
-        try { fs.rmSync('./auth_info', { recursive: true, force: true }); } catch {}
-        setTimeout(connectWhatsApp, 3000);
-        return;
-      }
-
-      if (statusCode === 405) {
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 405) {
         const fs = await import('fs');
         try { fs.rmSync('./auth_info', { recursive: true, force: true }); } catch {}
         setTimeout(connectWhatsApp, 3000);
