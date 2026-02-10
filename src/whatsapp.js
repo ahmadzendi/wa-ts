@@ -92,30 +92,32 @@ export async function connectWhatsApp() {
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('messages.upsert', ({ messages, type }) => {
+    sock.ev.on('messages.upsert', ({ messages, type }) => {
     if (type !== 'notify') return;
     for (const msg of messages) {
       if (msg.key.fromMe) continue;
 
-      // Ambil text dari semua kemungkinan format
       const text =
         msg.message?.conversation ||
         msg.message?.extendedTextMessage?.text ||
         msg.message?.imageMessage?.caption ||
         msg.message?.videoMessage?.caption ||
-        msg.message?.buttonsResponseMessage?.selectedDisplayText ||
-        msg.message?.listResponseMessage?.title ||
-        msg.message?.templateButtonReplyMessage?.selectedDisplayText ||
-        msg.message?.editedMessage?.message?.protocolMessage?.editedMessage?.conversation ||
-        msg.message?.editedMessage?.message?.protocolMessage?.editedMessage?.extendedTextMessage?.text ||
         '';
 
       if (!text) continue;
 
       const from = msg.key.remoteJid;
-      if (from !== config.waTargetJid) continue;
-
       const trimmed = text.trim();
+
+      // Command untuk dapat group ID, bisa dari mana saja
+      if (trimmed === '/groupid') {
+        sock.sendMessage(from, { text: `Group ID:\n${from}` });
+        console.log(`Group ID: ${from}`);
+        continue;
+      }
+
+      // Command lain hanya dari target
+      if (from !== config.waTargetJid) continue;
 
       if (trimmed.startsWith('/atur ')) {
         customMessage = trimmed.slice(6).trim();
@@ -133,7 +135,7 @@ export async function connectWhatsApp() {
       }
     }
   });
-
   return sock;
 }
+
 
