@@ -50,8 +50,11 @@ async function fetchAll() {
   await Promise.allSettled([fetchXauUsd(), fetchUsdIdr()]);
 }
 
+export async function fetchOnce() {
+  await fetchAll();
+}
+
 export function startMarketData() {
-  fetchAll();
   intervalHandle = setInterval(fetchAll, config.marketDataIntervalMs);
 }
 
