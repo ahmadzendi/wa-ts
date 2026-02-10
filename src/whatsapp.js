@@ -92,7 +92,7 @@ export async function connectWhatsApp() {
 
   sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('messages.upsert', ({ messages, type }) => {
+  sock.ev.on('messages.upsert', ({ messages, type }) => {
     if (type !== 'notify') return;
     for (const msg of messages) {
       if (msg.key.fromMe) continue;
@@ -109,15 +109,17 @@ export async function connectWhatsApp() {
       const from = msg.key.remoteJid;
       const trimmed = text.trim();
 
-      // Command untuk dapat group ID, bisa dari mana saja
+      // /groupid bisa dari mana saja
       if (trimmed === '/groupid') {
         sock.sendMessage(from, { text: `Group ID:\n${from}` });
-        console.log(`Group ID: ${from}`);
         continue;
       }
 
-      // Command lain hanya dari target
-      if (from !== config.waTargetJid) continue;
+      // Command bisa dari PM siapa saja atau dari grup target
+      const isPrivateChat = from.endsWith('@s.whatsapp.net');
+      const isFromTarget = from === config.waTargetJid;
+
+      if (!isPrivateChat && !isFromTarget) continue;
 
       if (trimmed.startsWith('/atur ')) {
         customMessage = trimmed.slice(6).trim();
@@ -137,5 +139,6 @@ export async function connectWhatsApp() {
   });
   return sock;
 }
+
 
 
