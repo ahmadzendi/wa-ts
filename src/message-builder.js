@@ -4,7 +4,9 @@ import { config } from './config.js';
 export function buildMessage({ newBuy, newSell, oldBuy, updatedAt, xauUsd, usdIdr, customMessage }) {
   const status = getStatus(newBuy, oldBuy);
   const tanggal = formatTanggalIndo(updatedAt);
-  const spreadPct = ((newSell - newBuy) / newBuy * 100).toFixed(1).replace('.', ',');
+  const spreadRaw = (newSell - newBuy) / newBuy * 100;
+  const spreadSign = spreadRaw >= 0 ? '+' : '';
+  const spreadPct = `${spreadSign}${spreadRaw.toFixed(2).replace('.', ',')}%`;
 
   const parts = [
     '*', status, '*\n',
@@ -29,4 +31,5 @@ export function buildMessage({ newBuy, newSell, oldBuy, updatedAt, xauUsd, usdId
 
   return parts.join('');
 }
+
 
