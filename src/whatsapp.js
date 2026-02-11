@@ -1,11 +1,10 @@
-import makeWASocket, {
-  useMultiFileAuthState,
-  DisconnectReason,
-  makeCacheableSignalKeyStore,
-  fetchLatestBaileysVersion,
-} from '@whiskeysockets/baileys';
+import makeWASocket from '@whiskeysockets/baileys';
+import { useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { makeCacheableSignalKeyStore } from '@whiskeysockets/baileys';
+import { fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import { DisconnectReason } from '@whiskeysockets/baileys';
 import pino from 'pino';
-import qrcode from 'qrcode-terminal';
+import QRCode from 'qrcode';
 import { config } from './config.js';
 
 const logger = pino({ level: 'silent' });
@@ -14,17 +13,12 @@ const EPHEMERAL = 86400;
 let sock = null;
 let isConnected = false;
 let customMessage = '';
-let onCommandCallback = null;
 
-export function setCommandCallback(cb) { onCommandCallback = cb; }
 export function getCustomMessage() { return customMessage; }
 export function isWaConnected() { return isConnected; }
 
 export async function sendWhatsApp(text) {
-  if (!sock || !isConnected) {
-    console.log('⚠️  WhatsApp belum terhubung');
-    return false;
-  }
+  if (!sock || !isConnected) return false;
   try {
     await sock.sendMessage(
       config.waTargetJid,
@@ -32,16 +26,21 @@ export async function sendWhatsApp(text) {
       { ephemeralExpiration: EPHEMERAL }
     );
     return true;
-  } catch (err) {
-    console.error('❌ Gagal kirim WA:', err.message);
+  } catch {
     return false;
   }
 }
 
 export async function connectWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
-  const { version, isLatest } = await fetchLatestBaileysVersion();
-  console.log(`📌 WA Web version: ${version.join('.')} (latest: ${isLatest})`);
+
+  let version;
+  try {
+    const vInfo = await fetchLatestBaileysVersion();
+    version = vInfo.version;
+  } catch {
+    version = [2, 3000, 1015901307];
+  }
 
   sock = makeWASocket({
     version,
@@ -55,52 +54,41 @@ export async function connectWhatsApp() {
     generateHighQualityLinkPreview: false,
     syncFullHistory: false,
     markOnlineOnConnect: false,
-    keepAliveIntervalMs: 15000,
-    connectTimeoutMs: 10000,
-    retryRequestDelayMs: 250,
-    fireInitQueries: false,
   });
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      console.log('\n═══════════════════════════════════');
-      console.log('📱 Scan QR Code dengan WhatsApp:');
-      console.log('   WhatsApp > Linked Devices > Link a Device');
-      console.log('═══════════════════════════════════\n');
-      qrcode.generate(qr, { small: true });
+      console.log('\n=== SCAN QR CODE ===\n');
+      try {
+        const qrText = await QRCode.toString(qr, { type: 'terminal', small: true });
+        console.log(qrText);
+      } catch {
+        console.log('QR:', qr);
+      }
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+      console.log('\nBuka link ini di browser lalu scan:');
+      console.log(qrUrl);
+      console.log('\n====================\n');
     }
 
     if (connection === 'open') {
       isConnected = true;
-      console.log('✅ WhatsApp terhubung!');
-      console.log(`📤 Target: ${config.waTargetJid}`);
+      console.log('WhatsApp terhubung!');
     }
 
     if (connection === 'close') {
       isConnected = false;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const reason = lastDisconnect?.error?.output?.payload?.message || 'unknown';
-      console.log(`❌ WhatsApp terputus (${statusCode}: ${reason})`);
 
-      if (statusCode === DisconnectReason.loggedOut) {
-        console.log('🔑 Logged out. Hapus auth_info dan restart.');
-        console.log('   Jalankan: rm -rf auth_info && npm start');
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 405) {
+        const fs = await import('fs');
+        try { fs.rmSync('./auth_info', { recursive: true, force: true }); } catch {}
+        setTimeout(connectWhatsApp, 3000);
         return;
       }
 
-      if (statusCode === 405) {
-        console.log('🔄 Error 405 - menghapus session lama...');
-        import('fs').then(fs => {
-          try { fs.rmSync('./auth_info', { recursive: true, force: true }); } catch {}
-          console.log('🔄 Session dihapus, reconnecting...');
-          setTimeout(connectWhatsApp, 3000);
-        });
-        return;
-      }
-
-      console.log('🔄 Reconnecting in 5s...');
       setTimeout(connectWhatsApp, config.reconnectDelayMs);
     }
   });
@@ -124,8 +112,6 @@ export async function connectWhatsApp() {
       const from = msg.key.remoteJid;
       const trimmed = text.trim();
 
-      console.log(`Pesan dari: ${from} | Isi: ${trimmed}`);
-
       if (trimmed === '/groupid') {
         sock.sendMessage(from, { text: `ID:\n${from}` }, { ephemeralExpiration: EPHEMERAL });
         continue;
@@ -135,7 +121,7 @@ export async function connectWhatsApp() {
         customMessage = trimmed.slice(6).trim();
         sock.sendMessage(from, { text: `Pesan custom diubah:\n"${customMessage}"` }, { ephemeralExpiration: EPHEMERAL });
       }
-      if (trimmed === '/resetpesan') {
+      if (trimmed === '/reset') {
         customMessage = '';
         sock.sendMessage(from, { text: 'Pesan custom dihapus' }, { ephemeralExpiration: EPHEMERAL });
       }
@@ -144,4 +130,3 @@ export async function connectWhatsApp() {
 
   return sock;
 }
-
