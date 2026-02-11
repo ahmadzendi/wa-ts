@@ -9,8 +9,7 @@ export function buildMessage({ newBuy, newSell, oldBuy, updatedAt, xauUsd, usdId
   const parts = [
     '*', status, '*\n',
     '*', tanggal, '*\n\n',
-    'Beli: Rp ', formatIdNumber(newBuy), ' ',
-    'Jual: Rp ', formatIdNumber(newSell), ' (', spreadPct, '%)\n\n',
+    'Beli: ', formatIdNumber(newBuy), ' Jual: ', formatIdNumber(newSell), ' *(', spreadPct, ')*\n\n',
   ];
 
   for (const [nominal, modal] of config.nominals) {
@@ -30,3 +29,4 @@ export function buildMessage({ newBuy, newSell, oldBuy, updatedAt, xauUsd, usdId
 
   return parts.join('');
 }
+
