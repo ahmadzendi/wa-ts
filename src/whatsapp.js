@@ -3,7 +3,7 @@ import makeWASocket, {
   DisconnectReason,
   makeCacheableSignalKeyStore,
   fetchLatestBaileysVersion,
-} from 'baileys';
+} from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { config } from './config.js';
@@ -144,3 +144,4 @@ export async function connectWhatsApp() {
 
   return sock;
 }
+
